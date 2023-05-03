@@ -1,9 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_compass/flutter_compass.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:location/location.dart';
+import 'package:smooth_compass/utils/smooth_compass.dart';
+import 'package:smooth_compass/utils/src/compass_ui.dart';
 
 import 'current_location_layer.dart';
 import 'data.dart';
@@ -19,7 +20,7 @@ class LocationMarkerDataStreamFactory {
   const LocationMarkerDataStreamFactory();
 
   /// Cast to a position stream from
-  /// [geolocator](https://pub.dev/packages/geolocator) stream.
+  /// [location](https://pub.dev/packages/location) stream.
   Stream<LocationMarkerPosition?> fromGeolocatorPositionStream({
     Stream<LocationData?>? stream,
   }) {
@@ -35,7 +36,7 @@ class LocationMarkerDataStreamFactory {
   }
 
   /// Cast to a position stream from
-  /// [geolocator](https://pub.dev/packages/geolocator) stream.
+  /// [location](https://pub.dev/packages/location) stream.
   @Deprecated('Use fromGeolocatorPositionStream instead')
   Stream<LocationMarkerPosition?> geolocatorPositionStream({
     Stream<LocationData?>? stream,
@@ -54,9 +55,7 @@ class LocationMarkerDataStreamFactory {
     );
     streamController.onListen = () async {
       try {
-        // bool serviceEnabled = await location.serviceEnabled();
         PermissionStatus permission = await location.hasPermission();
-        // LocationPermission permission = await Geolocator.checkPermission();
         if (permission == PermissionStatus.denied) {
           streamController.sink.addError(const lm.PermissionRequestingException());
           permission = await location.requestPermission();
@@ -76,25 +75,10 @@ class LocationMarkerDataStreamFactory {
                 streamController.sink.addError(const ServiceDisabledException());
               }
             } catch (_) {}
-            // try {
-            //   final subscription =
-            //       Geolocator.getServiceStatusStream().listen((serviceStatus) {
-            //     if (serviceStatus == ServiceStatus.enabled) {
-            //       streamController.sink.add(null);
-            //     } else {
-            //       streamController.sink
-            //           .addError(const ServiceDisabledException());
-            //     }
-            //   });
-            //   cancelFunctions.add(subscription.cancel);
-            // } catch (_) {}
             try {
               final lastKnown = await location.getLocation();
               streamController.sink.add(lastKnown);
             } catch (_) {}
-            // try {
-            //   streamController.sink.add(await Geolocator.getCurrentPosition());
-            // } catch (_) {}
             final subscription = location.onLocationChanged.listen((position) {
               streamController.sink.add(position);
             });
@@ -109,19 +93,19 @@ class LocationMarkerDataStreamFactory {
   }
 
   /// Cast to a heading stream from
-  /// [flutter_compass](https://pub.dev/packages/flutter_compass) stream.
+  /// [smooth_compass](https://pub.dev/packages/smooth_compass) stream.
   Stream<LocationMarkerHeading?> fromCompassHeadingStream({
-    Stream<CompassEvent?>? stream,
+    Stream<CompassModel?>? stream,
     double minAccuracy = pi * 0.1,
     double defAccuracy = pi * 0.3,
     double maxAccuracy = pi * 0.4,
   }) {
-    return (stream ?? defaultHeadingStreamSource()).where((CompassEvent? e) => e == null || e.heading != null).map(
-      (CompassEvent? e) {
+    return (stream ?? defaultHeadingStreamSource()).where((CompassModel? e) => e == null).map(
+      (CompassModel? e) {
         return e != null
             ? LocationMarkerHeading(
-                heading: degToRadian(e.heading!),
-                accuracy: (e.accuracy ?? defAccuracy).clamp(
+                heading: degToRadian(e.angle),
+                accuracy: defAccuracy.clamp(
                   minAccuracy,
                   maxAccuracy,
                 ),
@@ -132,10 +116,10 @@ class LocationMarkerDataStreamFactory {
   }
 
   /// Cast to a heading stream from
-  /// [flutter_compass](https://pub.dev/packages/flutter_compass) stream.
+  /// [smooth_compass](https://pub.dev/packages/smooth_compass) stream.
   @Deprecated('Use fromCompassHeadingStream instead')
   Stream<LocationMarkerHeading?> compassHeadingStream({
-    Stream<CompassEvent?>? stream,
+    Stream<CompassModel?>? stream,
     double minAccuracy = pi * 0.1,
     double defAccuracy = pi * 0.3,
     double maxAccuracy = pi * 0.4,
@@ -149,7 +133,7 @@ class LocationMarkerDataStreamFactory {
 
   /// Create a heading stream which is used as default value of
   /// [CurrentLocationLayer.headingStream].
-  Stream<CompassEvent?> defaultHeadingStreamSource() {
-    return !kIsWeb ? FlutterCompass.events! : const Stream.empty();
+  Stream<CompassModel?> defaultHeadingStreamSource() {
+    return !kIsWeb ? Compass().compassUpdates() : const Stream.empty();
   }
 }
